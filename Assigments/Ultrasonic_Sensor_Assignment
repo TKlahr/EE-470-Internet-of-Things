@@ -31,4 +31,36 @@ grid on
 x = [10 50 75];
 y = [9 48 73];
 
-coefficients = polyfit(x, y, 1) % get m and b of y = mx + b for line of best fit(trendline)
+coefficients = polyfit(x, y, 1)
+
+%% Part 5 - Standard Deviation and Measurement Error
+
+target = [10 50 75];
+
+SD = [0 0 0];
+meanError = [1 2 2];
+medianError = [1 2 2];
+
+% Standard Deviation
+figure
+bar(target, SD)
+xlabel('Target Distance (cm)')
+ylabel('Standard Deviation (cm)')
+title('Standard Deviation')
+grid on
+
+% Absolute Measurement Error Using Mean
+figure
+bar(target, meanError)
+xlabel('Target Distance (cm)')
+ylabel('Absolute Error (cm)')
+title('Measurement Error (Using Mean)')
+grid on
+
+% Absolute Measurement Error Using Median
+figure
+bar(target, medianError)
+xlabel('Target Distance (cm)')
+ylabel('Absolute Error (cm)')
+title('Measurement Error (Using Median)')
+grid on
