@@ -1,0 +1,34 @@
+% MIN Graph
+figure
+scatter(distance, minVals, 80, 'filled')
+hold on
+plot(distance, minVals)
+xlabel('Actual Distance (cm)')
+ylabel('Measured Distance (cm)')
+title('HC-SR04 - Minimum Measurements')
+grid on
+
+% MAX Graph
+figure
+scatter(distance, maxVals, 80, 'filled')
+hold on
+plot(distance, maxVals)
+xlabel('Actual Distance (cm)')
+ylabel('Measured Distance (cm)')
+title('HC-SR04 - Maximum Measurements')
+grid on
+
+% AVERAGE Graph
+figure
+scatter(distance, avgVals, 80, 'filled')
+hold on
+plot(distance, avgVals)
+xlabel('Actual Distance (cm)')
+ylabel('Measured Distance (cm)')
+title('HC-SR04 - Average Measurements')
+grid on
+
+x = [10 50 75];
+y = [9 48 73];
+
+coefficients = polyfit(x, y, 1) % get m and b of y = mx + b for line of best fit(trendline)
