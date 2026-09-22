@@ -23,10 +23,10 @@ void loop() {
 
   duration = pulseIn(echoPin, HIGH);  // Measure how long the ECHO pin stays high. Record time in duration
     
-  distance = duration / 58.2;  // Conversion of echo travel time in us to disance in cm (Calculated from speed of sound)
+  distance = duration / 58.2;  // Conversion of echo travel time in us to distance in cm (Calculated from speed of sound)
   // Speed of Sound = 343 m/s -> 0.0343 cm/us. Distance = (Duration*0.0343)/2 -> Distance = Duration/58.2
     
-  String disp = String(distance);  // Convert to string so we can display
+  String disp = String(distance);  // Convert distance to string for display
 
   Serial.print("Distance: ");  // Print the measured distance in Serial Monitor
   Serial.print(disp);
