@@ -1,61 +1,46 @@
 #define echoPin D2
 #define trigPin D4
 
-
 long duration, distance;
 long readings[3];
 
-
 int count = 0;
-
 
 void setup() {
   Serial.begin(9600);
-
 
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
 }
 
-
 void loop() {
-
 
   // Stop after 50 median results
   if (count >= 50) {
     return;
   }
 
-
   // Take 3 measurements, 2 seconds apart
   for (int i = 0; i < 3; i++) {
-
 
     digitalWrite(trigPin, LOW);
     delayMicroseconds(2);
 
-
     digitalWrite(trigPin, HIGH);
     delayMicroseconds(10);
 
-
     digitalWrite(trigPin, LOW);
-
 
     duration = pulseIn(echoPin, HIGH);
     distance = duration / 58.2;
 
-
     readings[i] = distance;
-
 
     delay(2000);
   }
 
-
   // Find median of the 3 measurements
   long median;
-
 
   if ((readings[0] >= readings[1] && readings[0] <= readings[2]) ||
       (readings[0] <= readings[1] && readings[0] >= readings[2])) {
@@ -69,9 +54,7 @@ void loop() {
     median = readings[2];
   }
 
-
   count++;
-
 
   Serial.print(count);
   Serial.print(": Median Distance: ");
