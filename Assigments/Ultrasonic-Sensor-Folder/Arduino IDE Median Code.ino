@@ -28,7 +28,7 @@ void loop() {
     delayMicroseconds(2);  //Ensures previous state is clear before new trigger
 
     digitalWrite(trigPin, HIGH);  // Send a 10 us high pulse to trigger the HC-SR04
-    delayMicroseconds(10);
+    delayMicroseconds(10);  // 10 us spec from spec sheet
     digitalWrite(trigPin, LOW);
 
     duration = pulseIn(echoPin, HIGH);   // Measure how long the ECHO pin stays high. Record time in duration
