@@ -29,8 +29,8 @@ Main Program
 #include <Arduino.h>
 
 // Voltage divider resistor values
-const float R1 = 10000.0;   // 10 kOhm
-const float R2 = 22000.0;   // 22 kOhm
+const float R1 = 10.0;   // 10 Ohm
+const float R2 = 22.0;   // 22 Ohm
 
 // Maximum voltage represented by the ADC
 const float ADC_VOLTAGE = 3.3;
