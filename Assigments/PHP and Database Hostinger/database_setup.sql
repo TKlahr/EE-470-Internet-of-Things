@@ -45,3 +45,10 @@ SELECT
 FROM sensor_data
 JOIN sensor_register
 ON sensor_data.node_name = sensor_register.node_name;
+
+
+--Example Update
+UPDATE sensor_data
+SET temperature = 30.00
+WHERE node_name = 'node_1'
+AND time_received = '2022-10-01 11:00:00';
