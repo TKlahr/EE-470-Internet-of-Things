@@ -1,27 +1,45 @@
+
 // EE-470 Assignment 4 - Part 2
-// Plot sensor temperature using Chart.js
+// Display temperature data for the selected sensor
 
-async function loadSensorData() {
+let sensorChart = null;
 
-    // Retrieve readings from our PHP file
-    const response = await fetch('data.php?node=node_1');
+async function loadSensorData(node) {
+
+    // Request data for the selected node
+    const response = await fetch(
+        'data.php?node=' + encodeURIComponent(node)
+    );
+
+    if (!response.ok) {
+        throw new Error('Failed to retrieve sensor data');
+    }
+
     const data = await response.json();
 
     // Extract timestamps and temperatures
     const times = data.map(row => row.time_received);
     const temperatures = data.map(row => Number(row.temperature));
 
-    // Get the canvas element
+    // Update the graph title
+    const nodeNumber = node.split('_')[1];
+    const chartTitle = 'Sensor Node ' + nodeNumber;
+
     const ctx = document.getElementById('sensorChart');
 
-    // Create the bar graph
-    new Chart(ctx, {
+    // Remove the previous graph
+    if (sensorChart !== null) {
+        sensorChart.destroy();
+    }
+
+    // Create graph for the selected node
+    sensorChart = new Chart(ctx, {
         type: 'bar',
 
         data: {
             labels: times,
             datasets: [{
-                label: 'Sensor Node 1',
+                label: chartTitle,
                 data: temperatures,
                 backgroundColor: 'rgba(54, 162, 235, 0.6)',
                 borderColor: 'rgba(54, 162, 235, 1)',
@@ -31,12 +49,14 @@ async function loadSensorData() {
 
         options: {
             responsive: true,
+
             plugins: {
                 title: {
                     display: true,
-                    text: 'Sensor Node 1'
+                    text: chartTitle
                 }
             },
+
             scales: {
                 x: {
                     title: {
@@ -44,6 +64,7 @@ async function loadSensorData() {
                         text: 'Time'
                     }
                 },
+
                 y: {
                     title: {
                         display: true,
@@ -56,5 +77,13 @@ async function loadSensorData() {
     });
 }
 
-// Load graph when page opens
-loadSensorData();
+// Get dropdown menu
+const sensorSelect = document.getElementById('sensorSelect');
+
+// Update graph when the user selects a node
+sensorSelect.addEventListener('change', function() {
+    loadSensorData(this.value).catch(console.error);
+});
+
+// Display Node 1 when the page first loads
+loadSensorData(sensorSelect.value).catch(console.error);
