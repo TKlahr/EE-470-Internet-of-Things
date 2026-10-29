@@ -1,0 +1,61 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Sensor Temperature Graph</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .chart-container {
+            width: 90%;
+            max-width: 1000px;
+            margin: 30px auto;
+        }
+
+        .sensor-selection {
+            text-align: center;
+            margin: 20px;
+        }
+
+        select {
+            padding: 8px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>IoT Sensor Temperature Graph</h1>
+
+<div class="sensor-selection">
+    <label for="sensorSelect">Select Sensor Node: </label>
+
+    <select id="sensorSelect">
+        <option value="node_1">Node 1</option>
+        <option value="node_2">Node 2</option>
+        <option value="node_3">Node 3</option>
+        <option value="node_4">Node 4</option>
+        <option value="node_5">Node 5</option>
+    </select>
+</div>
+
+<div class="chart-container">
+    <canvas id="sensorChart"></canvas>
+</div>
+
+<script src="app.js"></script>
+
+</body>
+</html>
