@@ -187,6 +187,9 @@ void connectWiFi() {
         Serial.print("IP Address: ");
         Serial.println(WiFi.localIP());
 
+        Serial.print("ESP8266 MAC Address: ");
+        Serial.println(WiFi.macAddress());
+
         Serial.print("RSSI: ");
         Serial.print(WiFi.RSSI());
         Serial.println(" dBm");
