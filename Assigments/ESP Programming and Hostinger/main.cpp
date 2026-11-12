@@ -53,6 +53,8 @@
 #include <DHT.h>
 #include <time.h>
 #include <math.h>
+#include <ArduinoJson.h>
+#include <sys/time.h>
 
 // --------------------------------------------------
 // Wi-Fi and server configuration
@@ -254,10 +256,12 @@ void selectTimeZone() {
 // Retrieve selected time zone from external API
 // --------------------------------------------------
 
-void retrieveTimeFromAPI() {
+String getTimestamp();
+
+bool retrieveTimeFromAPI() {
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("Time API unavailable: No Wi-Fi.");
-        return;
+        return false;
     }
 
     String url =
@@ -274,8 +278,8 @@ void retrieveTimeFromAPI() {
     Serial.println("Contacting timeapi.io...");
 
     if (!http.begin(client, url)) {
-        Serial.println("Time API connection failed.");
-        return;
+        Serial.println("Time API connection setup failed.");
+        return false;
     }
 
     int httpCode = http.GET();
@@ -283,30 +287,46 @@ void retrieveTimeFromAPI() {
     Serial.print("Time API HTTP code: ");
     Serial.println(httpCode);
 
-    if (httpCode == 200) {
-        String response = http.getString();
-
-        // The API returns JSON containing dateTime.
-        // For this version, NTP will maintain the actual
-        // clock used for measurement timestamps.
-        if (response.indexOf("\"dateTime\"") >= 0) {
-            Serial.println("Time API response received.");
-        } else {
-            Serial.println("Unexpected time API response.");
-        }
-    } else {
+    if (httpCode != 200) {
         Serial.println("Time API request unsuccessful.");
+        http.end();
+        return false;
     }
 
+    String response = http.getString();
     http.end();
-}
 
-// --------------------------------------------------
-// Synchronize internal clock using NTP
-// --------------------------------------------------
+    StaticJsonDocument<1024> doc;
 
-void synchronizeTime() {
-    // Configure selected time zone including DST
+    DeserializationError error =
+        deserializeJson(doc, response);
+
+    if (error) {
+        Serial.println("Invalid time API JSON.");
+        return false;
+    }
+
+    const char* dateTime = doc["dateTime"];
+
+    if (dateTime == nullptr) {
+        Serial.println("Missing dateTime from API.");
+        return false;
+    }
+
+    int year, month, day, hour, minute, second;
+
+    if (sscanf(
+            dateTime,
+            "%d-%d-%dT%d:%d:%d",
+            &year, &month, &day,
+            &hour, &minute, &second
+        ) != 6) {
+
+        Serial.println("Invalid API date/time.");
+        return false;
+    }
+
+    // Apply selected time zone before conversion.
     setenv(
         "TZ",
         timeZoneRules[selectedTimeZone - 1],
@@ -315,6 +335,49 @@ void synchronizeTime() {
 
     tzset();
 
+    struct tm localTime = {};
+
+    localTime.tm_year = year - 1900;
+    localTime.tm_mon = month - 1;
+    localTime.tm_mday = day;
+    localTime.tm_hour = hour;
+    localTime.tm_min = minute;
+    localTime.tm_sec = second;
+    localTime.tm_isdst = -1;
+
+    // Convert API local time into Unix time.
+    time_t epoch = mktime(&localTime);
+
+    if (epoch == (time_t)-1) {
+        Serial.println("Failed to convert API time.");
+        return false;
+    }
+
+    struct timeval tv = {};
+    tv.tv_sec = epoch;
+    tv.tv_usec = 0;
+
+    if (settimeofday(&tv, nullptr) != 0) {
+        Serial.println("Failed to set ESP8266 clock.");
+        return false;
+    }
+
+    Serial.println("ESP8266 clock set using timeapi.io!");
+
+    Serial.print("Selected time zone: ");
+    Serial.println(timeZoneNames[selectedTimeZone - 1]);
+
+    Serial.print("Current local time: ");
+    Serial.println(getTimestamp());
+
+    return true;
+}
+
+// --------------------------------------------------
+// Synchronize internal clock using NTP
+// --------------------------------------------------
+
+void synchronizeTime() {
     // NTP provides UTC; localtime() applies TZ rules
     configTime(
         0,
@@ -322,6 +385,15 @@ void synchronizeTime() {
         "pool.ntp.org",
         "time.nist.gov"
     );
+
+     //Apply the selected time zone AFTER configTime()
+    setenv(
+        "TZ",
+        timeZoneRules[selectedTimeZone - 1],
+        1
+    );
+
+    tzset();
 
     Serial.print("Synchronizing clock");
 
@@ -607,9 +679,13 @@ void setup() {
     selectTimeZone();
 
     if (WiFi.status() == WL_CONNECTED) {
-        retrieveTimeFromAPI();
+      if (!retrieveTimeFromAPI()) {
+        Serial.println("API failed. Using NTP fallback.");
         synchronizeTime();
     }
+    
+}
+
 }
 
 // --------------------------------------------------
