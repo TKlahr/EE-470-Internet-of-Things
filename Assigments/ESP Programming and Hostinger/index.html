@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EE-470 ESP8266 IoT Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background: #f4f6fa;
+            color: #263238;
+        }
+
+        header {
+            background: #17365d;
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0 0 8px;
+        }
+
+        header p {
+            margin: 0;
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 25px auto;
+            padding: 0 20px;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 25px;
+        }
+
+        select, button {
+            padding: 10px 15px;
+            font-size: 16px;
+            border: 1px solid #ccd3dd;
+            border-radius: 6px;
+            background: white;
+        }
+
+        button {
+            background: #17365d;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #285487;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(
+                auto-fit, minmax(220px, 1fr)
+            );
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            color: #526477;
+            font-size: 15px;
+        }
+
+        .card .value {
+            font-size: 26px;
+            font-weight: bold;
+            color: #17365d;
+        }
+
+        .card .details {
+            margin-top: 12px;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 320px;
+        }
+
+        .status {
+            font-size: 14px;
+            color: #526477;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #667;
+        }
+
+        @media (min-width: 900px) {
+            .charts {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .charts .card:last-child {
+                grid-column: 1 / -1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>ESP8266 IoT Sensor Dashboard</h1>
+    <p>EE-470 | Temperature, Humidity, and Light Monitoring</p>
+</header>
+
+<main>
+
+    <div class="controls">
+        <label for="nodeSelect"><strong>Select Node:</strong></label>
+
+        <select id="nodeSelect">
+            <option value="node_1">Node 1 - Pushbutton</option>
+            <option value="node_2">Node 2 - Tilt Switch</option>
+        </select>
+
+        <button id="refreshButton">Refresh Data</button>
+
+        <span class="status" id="status">
+            Loading measurements...
+        </span>
+    </div>
+
+    <h2>Sensor Statistics</h2>
+
+    <div class="stats-grid">
+
+        <div class="card">
+            <h3>Temperature</h3>
+            <div class="value" id="avgTemp">--</div>
+            <div class="details">
+                Minimum: <span id="minTemp">--</span><br>
+                Maximum: <span id="maxTemp">--</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Humidity</h3>
+            <div class="value" id="avgHumidity">--</div>
+            <div class="details">
+                Minimum: <span id="minHumidity">--</span><br>
+                Maximum: <span id="maxHumidity">--</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Light Level</h3>
+            <div class="value" id="avgLight">--</div>
+            <div class="details">
+                Minimum: <span id="minLight">--</span><br>
+                Maximum: <span id="maxLight">--</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Measurement Activity</h3>
+            <div class="value" id="totalCount">--</div>
+            <div class="details">
+                Total unique measurements<br>
+                Activity count: <span id="activityCount">--</span>
+            </div>
+        </div>
+
+    </div>
+
+    <h2>Sensor Measurements Over Time</h2>
+
+    <div class="charts">
+
+        <div class="card">
+            <h3>Temperature (°C)</h3>
+            <div class="chart-container">
+                <canvas id="temperatureChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Humidity (%)</h3>
+            <div class="chart-container">
+                <canvas id="humidityChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Light Level (ADC)</h3>
+            <div class="chart-container">
+                <canvas id="lightChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+</main>
+
+<footer>
+    EE-470 Introduction to the Internet of Things
+</footer>
+
+<script>
+    let temperatureChart = null;
+    let humidityChart = null;
+    let lightChart = null;
+
+    function formatValue(value, unit = "") {
+        if (value === null || value === undefined) {
+            return "N/A";
+        }
+
+        return Number(value).toFixed(2) + unit;
+    }
+
+    function updateStatistics(data) {
+        const stats = data.statistics;
+
+        document.getElementById("avgTemp").textContent =
+            formatValue(stats.avg_temperature, " °C");
+
+        document.getElementById("minTemp").textContent =
+            formatValue(stats.min_temperature, " °C");
+
+        document.getElementById("maxTemp").textContent =
+            formatValue(stats.max_temperature, " °C");
+
+        document.getElementById("avgHumidity").textContent =
+            formatValue(stats.avg_humidity, "%");
+
+        document.getElementById("minHumidity").textContent =
+            formatValue(stats.min_humidity, "%");
+
+        document.getElementById("maxHumidity").textContent =
+            formatValue(stats.max_humidity, "%");
+
+        document.getElementById("avgLight").textContent =
+            formatValue(stats.avg_light);
+
+        document.getElementById("minLight").textContent =
+            formatValue(stats.min_light);
+
+        document.getElementById("maxLight").textContent =
+            formatValue(stats.max_light);
+
+        document.getElementById("totalCount").textContent =
+            stats.count;
+
+        document.getElementById("activityCount").textContent =
+            data.activity_count;
+    }
+
+    function createChart(canvasId, label, labels, values, oldChart) {
+        if (oldChart !== null) {
+            oldChart.destroy();
+        }
+
+        const ctx = document.getElementById(canvasId);
+
+        return new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: label,
+                    data: values,
+                    borderColor: "#2878b5",
+                    backgroundColor: "rgba(40,120,181,0.1)",
+                    borderWidth: 2,
+                    tension: 0.2,
+                    pointRadius: 3,
+                    spanGaps: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: "Measurement Timestamp"
+                        },
+                        ticks: {
+                            maxTicksLimit: 8,
+                            maxRotation: 30
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: label
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateCharts(measurements) {
+        const labels = measurements.map(
+            reading => reading.timestamp
+        );
+
+        const temperatures = measurements.map(
+            reading => reading.temperature
+        );
+
+        const humidities = measurements.map(
+            reading => reading.humidity
+        );
+
+        const lightLevels = measurements.map(
+            reading => reading.light
+        );
+
+        temperatureChart = createChart(
+            "temperatureChart",
+            "Temperature (°C)",
+            labels,
+            temperatures,
+            temperatureChart
+        );
+
+        humidityChart = createChart(
+            "humidityChart",
+            "Humidity (%)",
+            labels,
+            humidities,
+            humidityChart
+        );
+
+        lightChart = createChart(
+            "lightChart",
+            "Light Level (ADC)",
+            labels,
+            lightLevels,
+            lightChart
+        );
+    }
+
+    async function loadData() {
+        const node = document.getElementById("nodeSelect").value;
+        const status = document.getElementById("status");
+
+        status.textContent = "Loading measurements...";
+
+        try {
+            const response = await fetch(
+                "data.php?node=" +
+                encodeURIComponent(node) +
+                "&t=" + Date.now()
+            );
+
+            if (!response.ok) {
+                throw new Error("HTTP " + response.status);
+            }
+
+            const data = await response.json();
+
+            updateStatistics(data);
+            updateCharts(data.measurements);
+
+            status.textContent =
+                "Updated: " + new Date().toLocaleTimeString();
+
+        } catch (error) {
+            console.error(error);
+            status.textContent = "Error loading measurements.";
+        }
+    }
+
+    document.getElementById("nodeSelect")
+        .addEventListener("change", loadData);
+
+    document.getElementById("refreshButton")
+        .addEventListener("click", loadData);
+
+    loadData();
+</script>
+
+</body>
+</html>
