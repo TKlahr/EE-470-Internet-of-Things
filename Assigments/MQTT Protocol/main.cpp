@@ -6,6 +6,8 @@
 // Part A: Potentiometer, pushbutton, and LED
 // Part B: MQTT potentiometer publishing
 // Part C: MQTT LED control and button publishing
+// Part D: Smartphone MQTT communication
+// Part E: ESP8266-to-ESP8266 communication
 //
 // Dependencies: PubSubClient
 //-----------------------------
@@ -15,23 +17,54 @@
 #include <ESP8266HTTPClient.h>
 #include <PubSubClient.h>
 
+//------------------------------------------
 // WiFi variables
+//------------------------------------------
+
 const char* ssid = "YOUR_WIFI_NAME";
 const char* password = "YOUR_WIFI_PASSWORD";
 
-// MQTT variables
+//------------------------------------------
+// MQTT configuration
+//------------------------------------------
+
 const char* mqtt_server = "broker.mqtt-dashboard.com";
-const char* publishTopic = "testtopic/temp/outTopic/klahr470";
-const char* subscribeTopic = "testtopic/temp/inTopic/klahr470";
+
+// Change to 2 when uploading to the second ESP8266
+#define DEVICE_ID 1
+
+#if DEVICE_ID == 1
+
+const char* publishTopic = "ee470/klahr470/esp1/pot";
+const char* buttonTopic = "ee470/klahr470/esp1/button";
+const char* peerButtonTopic = "ee470/klahr470/esp2/button";
+const char* subscribeTopic = "ee470/klahr470/esp1/led/set";
+
+#elif DEVICE_ID == 2
+
+const char* publishTopic = "ee470/klahr470/esp2/pot";
+const char* buttonTopic = "ee470/klahr470/esp2/button";
+const char* peerButtonTopic = "ee470/klahr470/esp1/button";
+const char* subscribeTopic = "ee470/klahr470/esp2/led/set";
+
+#else
+#error "DEVICE_ID must be 1 or 2"
+#endif
 
 #define publishTimeInterval 15000
 
+//------------------------------------------
 // Pin definitions
+//------------------------------------------
+
 #define POT_PIN A0
 #define BUTTON_PIN D7
 #define LED_PIN D2
 
-// Definitions
+//------------------------------------------
+// Variables
+//------------------------------------------
+
 unsigned long lastMsg = 0;
 unsigned long lastRead = 0;
 
@@ -46,9 +79,11 @@ int ledStatus = 0;
 // Button timing
 unsigned long buttonPressTime = 0;
 bool buttonResetPending = false;
+
 unsigned long lastButtonChange = 0;
 const unsigned long debounceInterval = 50;
 
+// MQTT client
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -58,6 +93,7 @@ PubSubClient client(espClient);
 //------------------------------------------
 
 void setup_wifi() {
+
     delay(10);
 
     Serial.println();
@@ -76,7 +112,7 @@ void setup_wifi() {
 
     Serial.println();
     Serial.println("WiFi connected");
-    Serial.println("IP address: ");
+    Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 }
 
@@ -97,17 +133,23 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     Serial.println();
 
-    // Control LED based on received MQTT message
-    if (strcmp(topic, subscribeTopic) == 0 && length == 1) {
+    // Accept LED commands from the phone or peer ESP
+    if ((strcmp(topic, subscribeTopic) == 0 ||
+         strcmp(topic, peerButtonTopic) == 0) &&
+         length == 1) {
 
         if (payload[0] == '1') {
+
             digitalWrite(LED_PIN, HIGH);
             ledStatus = 1;
+
             Serial.println("MQTT: LED ON");
         }
         else if (payload[0] == '0') {
+
             digitalWrite(LED_PIN, LOW);
             ledStatus = 0;
+
             Serial.println("MQTT: LED OFF");
         }
     }
@@ -124,15 +166,22 @@ void reconnect() {
 
         Serial.print("Attempting MQTT connection...");
 
+        // Create a random client ID
         String clientId = "ESP8266Client-";
+        clientId += String(ESP.getChipId(), HEX);
+        clientId += "-";
         clientId += String(random(0xffff), HEX);
 
+        // Attempt connection
         if (client.connect(clientId.c_str())) {
 
             Serial.println("connected");
 
-            // Resubscribe to incoming topic
+            // Subscribe to phone LED commands
             client.subscribe(subscribeTopic);
+
+            // Subscribe to the other ESP8266
+            client.subscribe(peerButtonTopic);
 
         } else {
 
@@ -152,6 +201,7 @@ void reconnect() {
 
 void setup() {
 
+    // Initialize hardware
     pinMode(LED_PIN, OUTPUT);
     pinMode(BUTTON_PIN, INPUT_PULLUP);
 
@@ -160,10 +210,12 @@ void setup() {
     Serial.begin(115200);
 
     Serial.println();
-    Serial.println("EE470 MQTT Assignment - Part C");
+    Serial.print("EE470 MQTT Assignment - ESP");
+    Serial.println(DEVICE_ID);
 
     setup_wifi();
 
+    // Configure MQTT broker
     client.setServer(mqtt_server, 1883);
     client.setCallback(callback);
 }
@@ -184,7 +236,10 @@ void loop() {
 
     unsigned long now = millis();
 
-    // Read potentiometer every second
+    //--------------------------------------
+    // Part A: Read potentiometer
+    //--------------------------------------
+
     if (now - lastRead >= 1000) {
 
         lastRead = now;
@@ -195,7 +250,10 @@ void loop() {
         Serial.println(potValue);
     }
 
-    // Detect button press with debounce
+    //--------------------------------------
+    // Parts C/E: Detect button press
+    //--------------------------------------
+
     int reading = digitalRead(BUTTON_PIN);
 
     if (reading != buttonState) {
@@ -203,6 +261,7 @@ void loop() {
         buttonState = reading;
     }
 
+    // Debounced button state change
     if (now - lastButtonChange >= debounceInterval &&
         buttonState != lastButtonState) {
 
@@ -212,9 +271,12 @@ void loop() {
 
             Serial.println("Button pressed: 1");
 
+            // Publish button press to MQTT
             if (client.connected()) {
-                client.publish(publishTopic, "1");
-                Serial.println("MQTT: Published button 1");
+
+                if (client.publish(buttonTopic, "1")) {
+                    Serial.println("MQTT: Published button 1");
+                }
             }
 
             buttonPressTime = now;
@@ -222,35 +284,50 @@ void loop() {
         }
     }
 
-    // Publish 0 five seconds after button press
+    //--------------------------------------
+    // Publish 0 five seconds after press
+    //--------------------------------------
+
     if (buttonResetPending &&
         now - buttonPressTime >= 5000) {
 
         if (client.connected()) {
-            client.publish(publishTopic, "0");
-            Serial.println("MQTT: Published button 0");
-            buttonResetPending = false;
+
+            if (client.publish(buttonTopic, "0")) {
+                Serial.println("MQTT: Published button 0");
+                buttonResetPending = false;
+            }
         }
     }
 
-    // LED control through Serial Monitor (Part A)
+    //--------------------------------------
+    // Part A: Serial Monitor LED control
+    //--------------------------------------
+
     if (Serial.available() > 0) {
 
         char command = Serial.read();
 
         if (command == '1') {
+
             digitalWrite(LED_PIN, HIGH);
             ledStatus = 1;
+
             Serial.println("Serial: LED ON");
         }
         else if (command == '0') {
+
             digitalWrite(LED_PIN, LOW);
             ledStatus = 0;
+
             Serial.println("Serial: LED OFF");
         }
     }
 
-    // Publish potentiometer every 15 seconds (Part B)
+    //--------------------------------------
+    // Part B: Publish potentiometer value
+    //--------------------------------------
+
     if (now - lastMsg >= publishTimeInterval) {
 
         lastMsg = now;
@@ -263,8 +340,11 @@ void loop() {
         Serial.println(msg);
 
         if (client.publish(publishTopic, msg)) {
+
             Serial.println("MQTT publish successful");
+
         } else {
+
             Serial.println("MQTT publish failed");
         }
     }
