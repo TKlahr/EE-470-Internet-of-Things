@@ -22,8 +22,8 @@
 // WiFi settings
 //------------------------------------------
 
-const char* ssid = "Tyler's iPhone (2)";  // Change to your WiFi SSID
-const char* password = "Tylerhotspot";  // Change to your WiFi password
+const char* ssid = "WIFISSID";  // Change to your WiFi SSID
+const char* password = "WIFIPASSWORD";  // Change to your WiFi password
 
 //------------------------------------------
 // MQTT settings
